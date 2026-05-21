@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/api/senate", "destination": "/api/senate.js" },
+    { "source": "/api/house",  "destination": "/api/house.js"  }
+  ]
+}
