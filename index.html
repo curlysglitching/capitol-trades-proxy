@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Capitol Trades — Follow The Money</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#07070f; --sur:#0d0d1c; --brd:#1a1a30;
+  --buy:#00e676; --sell:#ff3355; --gold:#f0c040;
+  --txt:#d5d9f0; --dim:#4a4a80; --mute:#14142a; --card:#0a0a18;
+}
+.day {
+  --bg:#f0f2fb; --sur:#ffffff; --brd:#c8c8e0;
+  --buy:#007038; --sell:#c01040; --gold:#9a6500;
+  --txt:#14142e; --dim:#5858a0; --mute:#d5d5ee; --card:#f8f8ff;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--txt); font-family:'IBM Plex Sans',sans-serif; min-height:100vh; transition:background .25s,color .25s; }
+body::after { content:''; position:fixed; inset:0; background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,.012) 3px,rgba(0,0,0,.012) 6px); pointer-events:none; z-index:9000; }
+.day body::after { display:none; }
+
+/* Ticker */
+.tw { background:var(--sur); border-bottom:1px solid var(--brd); overflow:hidden; height:26px; display:flex; align-items:center; }
+.ti { display:inline-block; animation:scroll 80s linear infinite; font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--dim); white-space:nowrap; padding-left:100%; }
+.ti span { margin:0 14px; }
+.tb { color:var(--buy); } .ts { color:var(--sell); }
+@keyframes scroll { from{transform:translateX(0)} to{transform:translateX(-100%)} }
+
+/* Header */
+header { background:var(--sur); border-bottom:1px solid var(--brd); padding:14px 20px; display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:10px; }
+.logo h1 { font-family:'Bebas Neue',sans-serif; font-size:clamp(26px,5vw,50px); letter-spacing:4px; line-height:1; }
+.logo h1 em { color:var(--gold); font-style:normal; }
+.logo p { font-family:'IBM Plex Mono',monospace; font-size:9px; color:var(--dim); letter-spacing:2px; margin-top:2px; }
+.hdr-r { display:flex; flex-direction:column; align-items:flex-end; gap:6px; }
+.upd { font-family:'IBM Plex Mono',monospace; font-size:9px; color:var(--dim); }
+.upd em { color:var(--gold); font-style:normal; }
+.hbtns { display:flex; gap:6px; align-items:center; flex-wrap:wrap; justify-content:flex-end; }
+.pill { font-family:'IBM Plex Mono',monospace; font-size:8px; color:var(--dim); border:1px solid var(--brd); padding:3px 8px; display:inline-flex; align-items:center; gap:4px; }
+.pdot { width:5px; height:5px; border-radius:50%; background:var(--buy); animation:pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.25} }
+.btn { font-family:'IBM Plex Mono',monospace; font-size:9px; letter-spacing:1px; padding:5px 11px; cursor:pointer; transition:all .2s; background:transparent; border:1px solid var(--brd); color:var(--dim); }
+.btn:hover { border-color:var(--gold); color:var(--gold); }
+.btn-y { border-color:var(--gold) !important; color:var(--gold) !important; }
+.btn-y:hover { background:var(--gold) !important; color:#000 !important; }
+.btn-y:disabled { opacity:.4; cursor:not-allowed; }
+
+/* Stats */
+.stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(95px,1fr)); border-bottom:1px solid var(--brd); }
+.stat { padding:10px 14px; border-right:1px solid var(--brd); }
+.stat:last-child { border-right:none; }
+.slbl { font-family:'IBM Plex Mono',monospace; font-size:8px; letter-spacing:2px; color:var(--dim); margin-bottom:2px; }
+.sval { font-family:'Bebas Neue',sans-serif; font-size:22px; }
+.cw{color:var(--txt)} .cg{color:var(--buy)} .cr{color:var(--sell)} .cy{color:var(--gold)}
+
+/* Source bar */
+.srcbar { display:flex; gap:7px; padding:5px 14px; border-bottom:1px solid var(--brd); background:var(--sur); flex-wrap:wrap; align-items:center; }
+.srclbl { font-family:'IBM Plex Mono',monospace; font-size:8px; color:var(--dim); letter-spacing:2px; }
+.sbadge { font-family:'IBM Plex Mono',monospace; font-size:8px; padding:2px 7px; border:1px solid var(--brd); color:var(--dim); }
+.sbadge.ok  { border-color:rgba(0,230,118,.4); color:var(--buy); }
+.sbadge.ok::before { content:'● '; font-size:7px; }
+.sbadge.fail { border-color:rgba(255,51,85,.4); color:var(--sell); }
+.sbadge.fail::before { content:'✗ '; }
+.sbadge.spin { border-color:rgba(240,192,64,.3); color:var(--gold); animation:fadepulse 1s infinite; }
+@keyframes fadepulse { 0%,100%{opacity:.4} 50%{opacity:1} }
+
+/* Layout */
+.main { display:grid; grid-template-columns:1fr 280px; min-height:calc(100vh - 230px); }
+.left { border-right:1px solid var(--brd); display:flex; flex-direction:column; }
+
+/* Tabs */
+.tabs { display:flex; border-bottom:1px solid var(--brd); background:var(--sur); overflow-x:auto; -webkit-overflow-scrolling:touch; }
+.tabs::-webkit-scrollbar { display:none; }
+.tab { font-family:'IBM Plex Mono',monospace; font-size:8px; letter-spacing:1px; padding:9px 13px; cursor:pointer; color:var(--dim); border:none; background:transparent; white-space:nowrap; border-bottom:2px solid transparent; transition:all .15s; flex-shrink:0; }
+.tab:hover { color:var(--txt); }
+.tab.on { color:var(--gold); border-bottom-color:var(--gold); }
+
+/* Filters */
+.filters { padding:6px 10px; border-bottom:1px solid var(--brd); display:flex; gap:5px; align-items:center; flex-wrap:wrap; background:var(--sur); }
+.flbl { font-family:'IBM Plex Mono',monospace; font-size:8px; color:var(--dim); letter-spacing:2px; }
+.fbtn { font-family:'IBM Plex Mono',monospace; font-size:8px; padding:2px 7px; background:transparent; border:1px solid var(--brd); color:var(--dim); cursor:pointer; transition:all .12s; }
+.fbtn.on { border-color:var(--gold); color:var(--gold); }
+.srch { background:var(--bg); border:1px solid var(--brd); color:var(--txt); font-family:'IBM Plex Mono',monospace; font-size:9px; padding:3px 8px; margin-left:auto; width:140px; outline:none; transition:border-color .2s; }
+.srch:focus { border-color:var(--gold); }
+.srch::placeholder { color:var(--dim); }
+
+/* Sort bar */
+.sortbar { display:flex; gap:4px; padding:5px 10px; border-bottom:1px solid var(--brd); align-items:center; background:var(--sur); }
+.sortlbl { font-family:'IBM Plex Mono',monospace; font-size:8px; color:var(--dim); }
+.sbtn { font-family:'IBM Plex Mono',monospace; font-size:8px; padding:2px 6px; background:transparent; border:1px solid var(--brd); color:var(--dim); cursor:pointer; transition:all .12s; }
+.sbtn.on { border-color:rgba(240,192,64,.5); color:var(--gold); }
+.rcnt { margin-left:auto; font-family:'IBM Plex Mono',monospace; font-size:8px; color:var(--dim); }
+
+/* Table */
+.tblwrap { overflow:auto; flex:1; }
+table { width:100%; border-collapse:collapse; }
+thead th { font-family:'IBM Plex Mono',monospace; font-size:8px; letter-spacing:1px; color:var(--dim); padding:6px 10px; text-align:left; border-bottom:1px solid var(--brd); position:sticky; top:0; background:var(--bg); z-index:1; white-space:nowrap; }
+.day thead th { background:var(--sur); }
+tbody tr { border-bottom:1px solid var(--brd); animation:fi .2s ease both; opacity:0; }
+@keyframes fi { to{opacity:1} }
+tbody tr:hover { background:var(--sur); }
+td { padding:7px 10px; font-size:12px; vertical-align:top; }
+.ctick { font-family:'IBM Plex Mono',monospace; font-weight:500; color:var(--gold); font-size:12px; }
+.cco { font-size:9px; color:var(--dim); margin-top:1px; max-width:130px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cmeta { display:flex; gap:3px; align-items:center; margin-top:2px; flex-wrap:wrap; }
+.pty { font-family:'IBM Plex Mono',monospace; font-size:7px; padding:1px 4px; }
+.pd { background:rgba(0,80,255,.12); color:#6688ff; border:1px solid rgba(0,80,255,.2); }
+.pr { background:rgba(255,40,40,.12); color:#ff7070; border:1px solid rgba(255,40,40,.2); }
+.pi { background:rgba(160,160,160,.08); color:#888; border:1px solid rgba(160,160,160,.15); }
+.chm { font-family:'IBM Plex Mono',monospace; font-size:7px; color:var(--dim); }
+.tbuy { color:var(--buy); font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:500; }
+.tsell { color:var(--sell); font-family:'IBM Plex Mono',monospace; font-size:10px; font-weight:500; }
+.camt { font-family:'IBM Plex Mono',monospace; font-size:10px; }
+.cdate { font-family:'IBM Plex Mono',monospace; font-size:9px; color:var(--dim); white-space:nowrap; }
+.cage { font-size:8px; opacity:.55; margin-top:1px; }
+.own { font-family:'IBM Plex Mono',monospace; font-size:7px; color:var(--dim); border:1px solid var(--brd); padding:1px 3px; }
+
+/* Right panel */
+.right { overflow-y:auto; background:var(--sur); }
+.psec { border-bottom:1px solid var(--brd); padding:11px; }
+.pttl { font-family:'IBM Plex Mono',monospace; font-size:8px; letter-spacing:3px; color:var(--dim); margin-bottom:8px; }
+.hrow { display:flex; align-items:center; gap:6px; margin-bottom:5px; padding:5px 6px; background:var(--card); border:1px solid var(--brd); cursor:pointer; transition:border-color .12s; }
+.hrow:hover { border-color:var(--gold); }
+.hnum { font-family:'Bebas Neue',sans-serif; font-size:16px; color:var(--dim); width:14px; text-align:center; flex-shrink:0; }
+.hinfo { flex:1; min-width:0; }
+.htick { font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--gold); }
+.hco { font-size:8px; color:var(--dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.hbs { display:flex; gap:4px; margin-top:1px; }
+.hbar { height:2px; background:var(--brd); width:36px; flex-shrink:0; margin-top:4px; }
+.hfill { height:2px; background:var(--gold); transition:width .6s; }
+.hcnt { font-family:'IBM Plex Mono',monospace; font-size:9px; color:var(--dim); flex-shrink:0; }
+.trow2 { display:flex; align-items:center; gap:6px; margin-bottom:5px; padding:5px 6px; border:1px solid var(--brd); background:var(--card); }
+.tav { width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:'Bebas Neue',sans-serif; font-size:11px; flex-shrink:0; }
+.tinfo { flex:1; min-width:0; }
+.tname { font-size:10px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.tmeta { font-family:'IBM Plex Mono',monospace; font-size:8px; color:var(--dim); }
+.tstats { text-align:right; flex-shrink:0; }
+.tcnt { font-family:'IBM Plex Mono',monospace; font-size:9px; color:var(--gold); }
+.tvol { font-family:'IBM Plex Mono',monospace; font-size:7px; color:var(--dim); }
+.yrwrap { display:flex; flex-wrap:wrap; gap:4px; }
+.abtxt { font-family:'IBM Plex Mono',monospace; font-size:9px; color:var(--dim); line-height:1.8; }
+.abtxt strong { color:var(--txt); }
+
+/* Loading / error / empty */
+.loading { padding:40px 20px; text-align:center; }
+.ldl { font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--dim); opacity:0; animation:fi .4s ease both; margin-bottom:8px; }
+.cur { color:var(--buy); animation:blink .7s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+.errbox { margin:12px; padding:14px; background:rgba(255,51,85,.04); border:1px solid rgba(255,51,85,.2); font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--sell); line-height:1.9; }
+.empty { padding:20px; text-align:center; font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--dim); }
+
+footer { text-align:center; padding:8px; font-family:'IBM Plex Mono',monospace; font-size:8px; color:var(--dim); border-top:1px solid var(--brd); background:var(--sur); }
+footer a { color:var(--dim); text-decoration:none; }
+footer a:hover { color:var(--gold); }
+
+@media(max-width:760px) {
+  .main { grid-template-columns:1fr; }
+  .right { border-top:1px solid var(--brd); }
+  .stat:nth-child(n+5) { display:none; }
+  header { padding:10px 14px; }
+}
+</style>
+</head>
+<body>
+
+<div class="tw"><div class="ti" id="tickEl">LOADING CONGRESSIONAL TRADE DATA...</div></div>
+
+<header>
+  <div class="logo">
+    <h1>CAPITOL <em>TRADES</em></h1>
+    <p>CONGRESSIONAL STOCK ACTIVITY — STOCK ACT PUBLIC DISCLOSURES</p>
+  </div>
+  <div class="hdr-r">
+    <div class="upd" id="updEl">LAST UPDATED: <em>—</em></div>
+    <div class="hbtns">
+      <div class="pill"><div class="pdot"></div>AUTO 06:00</div>
+      <button class="btn" id="themeBtn" onclick="toggleTheme()">🌙</button>
+      <button class="btn btn-y" id="refBtn" onclick="loadAll()">⟳ REFRESH</button>
+    </div>
+  </div>
+</header>
+
+<div class="stats">
+  <div class="stat"><div class="slbl">TOTAL</div><div class="sval cw" id="s0">—</div></div>
+  <div class="stat"><div class="slbl">BUYS</div><div class="sval cg" id="s1">—</div></div>
+  <div class="stat"><div class="slbl">SELLS</div><div class="sval cr" id="s2">—</div></div>
+  <div class="stat"><div class="slbl">POLITICIANS</div><div class="sval cy" id="s3">—</div></div>
+  <div class="stat"><div class="slbl">TICKERS</div><div class="sval cw" id="s4">—</div></div>
+  <div class="stat"><div class="slbl">SINCE</div><div class="sval cy" id="s5" style="font-size:14px;padding-top:5px">—</div></div>
+</div>
+
+<div class="srcbar">
+  <span class="srclbl">DATA:</span>
+  <span class="sbadge spin" id="src0">SENATE WATCHER</span>
+  <span class="sbadge spin" id="src1">HOUSE WATCHER</span>
+  <span class="sbadge" id="srcN">LOADING...</span>
+</div>
+
+<div class="main">
+  <div class="left">
+    <div class="tabs">
+      <button class="tab on"  data-t="all"    onclick="setTab(this)">ALL</button>
+      <button class="tab"     data-t="buy"    onclick="setTab(this)">BUYS</button>
+      <button class="tab"     data-t="sell"   onclick="setTab(this)">SELLS</button>
+      <button class="tab"     data-t="Senate" onclick="setTab(this)">SENATE</button>
+      <button class="tab"     data-t="House"  onclick="setTab(this)">HOUSE</button>
+    </div>
+    <div class="filters">
+      <span class="flbl">PARTY:</span>
+      <button class="fbtn on" data-p="all" onclick="setPty(this)">ALL</button>
+      <button class="fbtn"    data-p="D"   onclick="setPty(this)">DEM</button>
+      <button class="fbtn"    data-p="R"   onclick="setPty(this)">REP</button>
+      <button class="fbtn"    data-p="I"   onclick="setPty(this)">IND</button>
+      <input class="srch" id="srch" type="text" placeholder="TICKER / NAME..." oninput="render()">
+    </div>
+    <div class="sortbar">
+      <span class="sortlbl">SORT:</span>
+      <button class="sbtn on" data-k="date"   onclick="setSort(this)">DATE ↓</button>
+      <button class="sbtn"    data-k="ticker" onclick="setSort(this)">TICKER</button>
+      <button class="sbtn"    data-k="name"   onclick="setSort(this)">NAME</button>
+      <button class="sbtn"    data-k="amt"    onclick="setSort(this)">AMOUNT</button>
+      <span class="rcnt" id="rcnt"></span>
+    </div>
+    <div class="tblwrap" id="tbl">
+      <div class="loading">
+        <div class="ldl" style="animation-delay:.0s">FETCHING SENATE DISCLOSURES...</div>
+        <div class="ldl" style="animation-delay:.6s">FETCHING HOUSE DISCLOSURES...</div>
+        <div class="ldl" style="animation-delay:1.2s">PROCESSING RECORDS...</div>
+        <div class="ldl" style="animation-delay:1.8s"><span class="cur">█</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="right">
+    <div class="psec">
+      <div class="pttl">🔥 MOST ACTIVE STOCKS</div>
+      <div id="hotEl"><div class="empty">LOADING...</div></div>
+    </div>
+    <div class="psec">
+      <div class="pttl">⚡ TOP TRADERS</div>
+      <div id="trdrEl"><div class="empty">LOADING...</div></div>
+    </div>
+    <div class="psec">
+      <div class="pttl">📅 FILTER BY YEAR</div>
+      <div class="yrwrap" id="yrEl"></div>
+    </div>
+    <div class="psec">
+      <div class="pttl">ℹ️ ABOUT</div>
+      <div class="abtxt">
+        Data from <strong>Senate Stock Watcher</strong> &amp; <strong>House Stock Watcher</strong> — community databases of STOCK Act filings. Congress must disclose trades within 45 days. Amounts are ranges.<br><br>
+        Tap any stock to filter instantly.<br><br>
+        <strong>Not financial advice.</strong>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <a href="https://senatestockwatcher.com" target="_blank">SENATESTOCKWATCHER.COM</a> &nbsp;|&nbsp;
+  <a href="https://housestockwatcher.com" target="_blank">HOUSESTOCKWATCHER.COM</a> &nbsp;|&nbsp;
+  STOCK ACT DISCLOSURES — NOT FINANCIAL ADVICE
+</footer>
+
+<script>
+// ── Config — set your Vercel URL here after deploying ──────────
+// e.g. 'https://capitol-trades.vercel.app'
+// Leave as empty string to use the same domain (works when hosted on Vercel itself)
+const VERCEL_URL = 'https://capitol-trades-proxy.vercel.app';
+
+function apiUrl(path) {
+  return (VERCEL_URL || '') + path;
+}
+
+// ── Amount midpoints ──────────────────────────────────────────
+const AMT = {
+  '$1,001 - $15,000':8000,'$15,001 - $50,000':32500,
+  '$50,001 - $100,000':75000,'$100,001 - $250,000':175000,
+  '$250,001 - $500,000':375000,'$500,001 - $1,000,000':750000,
+  '$1,000,001 - $5,000,000':3000000,'$5,000,001 - $25,000,000':15000000,
+  '$25,000,001 - $50,000,000':37500000,'Over $50,000,000':55000000,
+};
+
+// ── Party lookup ──────────────────────────────────────────────
+const PM = {
+  'Schumer':'D','Warren':'D','Sanders':'I','Wyden':'D','Murray':'D','Cantwell':'D',
+  'Klobuchar':'D','Bennet':'D','Shaheen':'D','Stabenow':'D','Casey':'D',
+  'Carper':'D','Coons':'D','Brown':'D','Reed':'D','Whitehouse':'D','King':'I',
+  'Manchin':'D','Sinema':'I','Ossoff':'D','Warnock':'D','Padilla':'D','Kelly':'D',
+  'Hassan':'D','Rosen':'D','Hickenlooper':'D','Lujan':'D','Booker':'D',
+  'Fetterman':'D','Van Hollen':'D','Warner':'D','Kaine':'D','Durbin':'D',
+  'Duckworth':'D','Peters':'D','Smith':'D','Tester':'D','Merkley':'D',
+  'Baldwin':'D','Gillibrand':'D','Blumenthal':'D','Murphy':'D','Markey':'D',
+  'Welch':'D','Pelosi':'D','Gottheimer':'D','Spanberger':'D','Slotkin':'D',
+  'Crow':'D','Khanna':'D','Porter':'D','Ocasio-Cortez':'D',
+  'McConnell':'R','Collins':'R','Murkowski':'R','Romney':'R','Wicker':'R',
+  'Capito':'R','Thune':'R','Cornyn':'R','Barrasso':'R','Crapo':'R',
+  'Cruz':'R','Daines':'R','Ernst':'R','Fischer':'R','Graham':'R',
+  'Grassley':'R','Hagerty':'R','Hawley':'R','Hoeven':'R','Johnson':'R',
+  'Kennedy':'R','Lankford':'R','Lee':'R','Lummis':'R','Marshall':'R',
+  'Moran':'R','Paul':'R','Risch':'R','Rounds':'R','Rubio':'R',
+  'Scott':'R','Sullivan':'R','Tillis':'R','Tuberville':'R','Young':'R',
+  'McCarthy':'R','Jordan':'R','Mace':'R','Taylor':'R','Greene':'R',
+  'Gaetz':'R','Scalise':'R','Stefanik':'R','Crenshaw':'R',
+};
+function inferParty(n) {
+  if (!n) return '?';
+  const nl = n.toLowerCase();
+  for (const [k,v] of Object.entries(PM)) if (nl.includes(k.toLowerCase())) return v;
+  return '?';
+}
+
+// ── State ─────────────────────────────────────────────────────
+let all=[], tabF='all', ptyF='all', sk='date', sd=-1, yr='all', dark=true;
+
+// ── Theme ─────────────────────────────────────────────────────
+function toggleTheme() {
+  dark = !dark;
+  document.body.classList.toggle('day', !dark);
+  document.getElementById('themeBtn').textContent = dark ? '🌙' : '☀️';
+  localStorage.setItem('ctTheme', dark ? 'dark' : 'light');
+}
+(function() {
+  const t = localStorage.getItem('ctTheme');
+  if (t === 'light') { dark=false; document.body.classList.add('day'); document.getElementById('themeBtn').textContent='☀️'; }
+})();
+
+// ── Fetch helpers ─────────────────────────────────────────────
+async function getJSON(url, timeout=30000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeout);
+  try {
+    const r = await fetch(url, { signal: ctrl.signal });
+    clearTimeout(timer);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return await r.json();
+  } catch(e) { clearTimeout(timer); throw e; }
+}
+
+// ── Normalizers ───────────────────────────────────────────────
+function classifyType(s) {
+  s = (s||'').toLowerCase();
+  if (s.includes('purchase') || s==='p' || s==='buy') return 'buy';
+  if (s.includes('sale') || s==='s' || s==='sell') return 'sell';
+  return null;
+}
+function fmtDate(s) {
+  if (!s) return '';
+  const m = String(s).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) return `${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;
+  return String(s).slice(0,10);
+}
+
+function normSenate(raw) {
+  const out = [];
+  if (!Array.isArray(raw)) return out;
+  for (const senator of raw) {
+    if (!Array.isArray(senator.transactions)) continue;
+    const name = `${senator.first_name||''} ${senator.last_name||''}`.trim();
+    for (const t of senator.transactions) {
+      if (!t.ticker || t.ticker==='--') continue;
+      const type = classifyType(t.type||'');
+      if (!type) continue;
+      out.push({
+        ticker: t.ticker.toUpperCase().trim(),
+        company: t.asset_description||'',
+        name, chamber:'Senate',
+        party: inferParty(name),
+        type,
+        amount: t.amount||'',
+        amtMid: AMT[t.amount]||0,
+        date: fmtDate(t.transaction_date),
+        disclosed: fmtDate(senator.date_recieved||''),
+        owner: t.owner||'',
+      });
+    }
+  }
+  return out;
+}
+
+function normHouse(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw.map(t => {
+    if (!t.ticker || t.ticker==='--') return null;
+    const type = classifyType(t.type||'');
+    if (!type) return null;
+    return {
+      ticker: t.ticker.toUpperCase().trim(),
+      company: t.asset_description||'',
+      name: t.representative||'',
+      chamber: 'House',
+      party: inferParty(t.representative||''),
+      type,
+      amount: t.amount||'',
+      amtMid: AMT[t.amount]||0,
+      date: fmtDate(t.transaction_date),
+      disclosed: fmtDate(t.disclosure_date||''),
+      owner: t.owner||'',
+    };
+  }).filter(Boolean);
+}
+
+// ── Load ──────────────────────────────────────────────────────
+async function loadAll() {
+  const btn = document.getElementById('refBtn');
+  btn.disabled=true; btn.textContent='⟳ LOADING...';
+  const s0=document.getElementById('src0'), s1=document.getElementById('src1');
+  s0.className='sbadge spin'; s0.textContent='SENATE WATCHER';
+  s1.className='sbadge spin'; s1.textContent='HOUSE WATCHER';
+  document.getElementById('srcN').textContent='LOADING...';
+  showLoading();
+
+  const [sR, hR] = await Promise.allSettled([
+    getJSON(apiUrl('/api/senate')),
+    getJSON(apiUrl('/api/house')),
+  ]);
+
+  const senate = sR.status==='fulfilled' ? normSenate(sR.value) : [];
+  const house  = hR.status==='fulfilled' ? normHouse(hR.value)  : [];
+
+  s0.className = sR.status==='fulfilled' ? 'sbadge ok' : 'sbadge fail';
+  s0.textContent = sR.status==='fulfilled' ? `SENATE (${senate.length.toLocaleString()})` : 'SENATE (FAILED)';
+  s1.className = hR.status==='fulfilled' ? 'sbadge ok' : 'sbadge fail';
+  s1.textContent = hR.status==='fulfilled' ? `HOUSE (${house.length.toLocaleString()})` : 'HOUSE (FAILED)';
+
+  if (sR.status!=='fulfilled') console.error('Senate:', sR.reason);
+  if (hR.status!=='fulfilled') console.error('House:', hR.reason);
+
+  all = [...senate, ...house].sort((a,b) => b.date.localeCompare(a.date));
+  document.getElementById('srcN').textContent = all.length.toLocaleString() + ' TOTAL RECORDS';
+
+  if (all.length === 0) {
+    document.getElementById('tbl').innerHTML = `<div class="errbox">
+      <strong>⚠ NO DATA LOADED</strong><br><br>
+      ${sR.status!=='fulfilled' ? 'Senate: ' + sR.reason?.message + '<br>' : ''}
+      ${hR.status!=='fulfilled' ? 'House: '  + hR.reason?.message + '<br>' : ''}
+      <br>Make sure your Vercel deployment is live and VERCEL_URL is set correctly in index.html.
+    </div>`;
+  } else {
+    buildYears(); updateStats(); renderSidebar(); buildTicker(); render();
+  }
+
+  updateTimestamp();
+  btn.disabled=false; btn.textContent='⟳ REFRESH';
+}
+
+function showLoading() {
+  document.getElementById('tbl').innerHTML=`<div class="loading">
+    <div class="ldl" style="animation-delay:.0s">FETCHING SENATE DISCLOSURES...</div>
+    <div class="ldl" style="animation-delay:.6s">FETCHING HOUSE DISCLOSURES...</div>
+    <div class="ldl" style="animation-delay:1.2s">PROCESSING RECORDS...</div>
+    <div class="ldl" style="animation-delay:1.8s"><span class="cur">█</span></div>
+  </div>`;
+  document.getElementById('hotEl').innerHTML='<div class="empty">LOADING...</div>';
+  document.getElementById('trdrEl').innerHTML='<div class="empty">LOADING...</div>';
+}
+
+// ── Stats ─────────────────────────────────────────────────────
+function updateStats() {
+  const b=all.filter(t=>t.type==='buy').length, s=all.filter(t=>t.type==='sell').length;
+  const p=new Set(all.map(t=>t.name)).size, tx=new Set(all.map(t=>t.ticker)).size;
+  const dates=all.map(t=>t.date).filter(Boolean).sort();
+  const rng=dates.length?dates[0].slice(0,4)+'–'+dates[dates.length-1].slice(0,4):'—';
+  document.getElementById('s0').textContent=all.length.toLocaleString();
+  document.getElementById('s1').textContent=b.toLocaleString();
+  document.getElementById('s2').textContent=s.toLocaleString();
+  document.getElementById('s3').textContent=p.toLocaleString();
+  document.getElementById('s4').textContent=tx.toLocaleString();
+  document.getElementById('s5').textContent=rng;
+}
+
+// ── Year filter ───────────────────────────────────────────────
+function buildYears() {
+  const yrs=[...new Set(all.map(t=>t.date.slice(0,4)).filter(Boolean))].sort().reverse();
+  document.getElementById('yrEl').innerHTML=
+    `<button class="fbtn on" onclick="setYr('all',this)">ALL</button>`+
+    yrs.map(y=>`<button class="fbtn" onclick="setYr('${y}',this)">${y}</button>`).join('');
+}
+function setYr(y,btn){yr=y;document.querySelectorAll('#yrEl .fbtn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');render();}
+
+// ── Filters ───────────────────────────────────────────────────
+function setTab(btn){tabF=btn.dataset.t;document.querySelectorAll('.tab').forEach(b=>b.classList.remove('on'));btn.classList.add('on');render();}
+function setPty(btn){ptyF=btn.dataset.p;document.querySelectorAll('.fbtn[data-p]').forEach(b=>b.classList.remove('on'));btn.classList.add('on');render();}
+function setSort(btn){
+  if(sk===btn.dataset.k)sd*=-1;else{sk=btn.dataset.k;sd=sk==='date'?-1:1;}
+  document.querySelectorAll('.sbtn').forEach(b=>{b.classList.remove('on');b.textContent=b.dataset.k.toUpperCase();});
+  btn.classList.add('on');btn.textContent=btn.dataset.k.toUpperCase()+(sd===-1?' ↓':' ↑');render();
+}
+
+function getFiltered() {
+  const q=(document.getElementById('srch').value||'').toLowerCase();
+  return all.filter(t=>{
+    if(tabF==='buy'&&t.type!=='buy')return false;
+    if(tabF==='sell'&&t.type!=='sell')return false;
+    if(tabF==='Senate'&&t.chamber!=='Senate')return false;
+    if(tabF==='House'&&t.chamber!=='House')return false;
+    if(ptyF!=='all'&&t.party!==ptyF)return false;
+    if(yr!=='all'&&!t.date.startsWith(yr))return false;
+    if(q&&!`${t.ticker} ${t.company} ${t.name}`.toLowerCase().includes(q))return false;
+    return true;
+  }).sort((a,b)=>{
+    let av,bv;
+    if(sk==='date'){av=a.date;bv=b.date;}
+    else if(sk==='ticker'){av=a.ticker;bv=b.ticker;}
+    else if(sk==='name'){av=a.name;bv=b.name;}
+    else{av=a.amtMid;bv=b.amtMid;}
+    return av<bv?sd:av>bv?-sd:0;
+  });
+}
+
+// ── Render table ──────────────────────────────────────────────
+function render() {
+  const rows=getFiltered();
+  document.getElementById('rcnt').textContent=rows.length.toLocaleString()+' RECORDS';
+  if(!rows.length){document.getElementById('tbl').innerHTML='<div class="empty">NO TRADES MATCH FILTERS</div>';return;}
+  const now=Date.now(), PC={D:'pd',R:'pr',I:'pi','?':'pi'};
+  const html=rows.map((t,i)=>{
+    const dA=t.date?Math.round((now-new Date(t.date))/86400000):null;
+    const age=dA===null?'':dA<1?'TODAY':dA+'d ago';
+    const ty=t.type==='buy'?'<span class="tbuy">▲ BUY</span>':'<span class="tsell">▼ SELL</span>';
+    const own=t.owner&&t.owner!=='Self'&&t.owner!==''&&t.owner!=='--'?`<span class="own">${t.owner}</span>`:'';
+    return `<tr style="animation-delay:${Math.min(i*.015,1)}s">
+      <td><div class="ctick">${t.ticker}</div><div class="cco" title="${t.company}">${t.company}</div></td>
+      <td><div style="font-size:11px">${t.name}</div>
+          <div class="cmeta"><span class="pty ${PC[t.party]||'pi'}">${t.party}</span>
+          <span class="chm">${t.chamber}</span>${own}</div></td>
+      <td>${ty}</td>
+      <td class="camt">${t.amount||'—'}</td>
+      <td class="cdate">${t.date||'—'}<div class="cage">${age}</div></td>
+      <td class="cdate">${t.disclosed||'—'}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('tbl').innerHTML=`
+    <table>
+      <thead><tr>
+        <th>TICKER / ASSET</th><th>POLITICIAN</th><th>TYPE</th>
+        <th>AMOUNT</th><th>TRADE DATE</th><th>DISCLOSED</th>
+      </tr></thead>
+      <tbody>${html}</tbody>
+    </table>`;
+}
+
+// ── Sidebar ───────────────────────────────────────────────────
+function renderSidebar() {
+  const sm={};
+  all.forEach(t=>{if(!sm[t.ticker])sm[t.ticker]={co:t.company,n:0,b:0,s:0};sm[t.ticker].n++;sm[t.ticker][t.type==='buy'?'b':'s']++;});
+  const topS=Object.entries(sm).sort((a,b)=>b[1].n-a[1].n).slice(0,8);
+  const mx=topS[0]?.[1].n||1;
+  document.getElementById('hotEl').innerHTML=topS.length?topS.map(([tk,d],i)=>`
+    <div class="hrow" onclick="quickFilter('${tk}')">
+      <div class="hnum">${i+1}</div>
+      <div class="hinfo">
+        <div class="htick">${tk}</div><div class="hco">${d.co}</div>
+        <div class="hbs"><span style="font-size:7px;color:var(--buy)">▲${d.b}</span><span style="font-size:7px;color:var(--sell)">▼${d.s}</span></div>
+      </div>
+      <div class="hbar"><div class="hfill" style="width:${(d.n/mx*100).toFixed(0)}%"></div></div>
+      <div class="hcnt">${d.n}</div>
+    </div>`).join(''):'<div class="empty">NO DATA</div>';
+
+  const tm={};
+  all.forEach(t=>{if(!tm[t.name])tm[t.name]={p:t.party,ch:t.chamber,n:0,v:0};tm[t.name].n++;tm[t.name].v+=t.amtMid;});
+  const topT=Object.entries(tm).sort((a,b)=>b[1].n-a[1].n).slice(0,7);
+  const cols=['#f0c040','#00e676','#ff3355','#4488ff','#ff8844','#cc44ff','#00cfff'];
+  document.getElementById('trdrEl').innerHTML=topT.length?topT.map(([nm,d],i)=>{
+    const ini=nm.split(' ').map(c=>c[0]).join('').slice(0,2).toUpperCase();
+    const c=cols[i%cols.length];
+    const vol=d.v>0?'$'+(d.v>=1e6?(d.v/1e6).toFixed(1)+'M':(d.v/1e3).toFixed(0)+'K')+'+':'N/A';
+    return `<div class="trow2">
+      <div class="tav" style="background:${c}18;color:${c};border:1px solid ${c}40">${ini}</div>
+      <div class="tinfo"><div class="tname" title="${nm}">${nm}</div><div class="tmeta">${d.p!=='?'?d.p+' · ':''}${d.ch}</div></div>
+      <div class="tstats"><div class="tcnt">${d.n} trades</div><div class="tvol">${vol}</div></div>
+    </div>`;
+  }).join(''):'<div class="empty">NO DATA</div>';
+}
+
+// ── Ticker tape ───────────────────────────────────────────────
+function buildTicker() {
+  const items=all.slice(0,40).map(t=>{
+    const c=t.type==='buy'?'tb':'ts', sym=t.type==='buy'?'▲':'▼';
+    return `<span class="${c}">${sym} ${t.ticker}</span> <span>${t.name} · ${t.amount}</span>`;
+  });
+  if(items.length) document.getElementById('tickEl').innerHTML=[...items,...items].join('');
+}
+
+function quickFilter(tk){document.getElementById('srch').value=tk;render();document.querySelector('.tblwrap')?.scrollIntoView({behavior:'smooth'});}
+function updateTimestamp(){const n=new Date();document.getElementById('updEl').innerHTML=`LAST UPDATED: <em>${n.toLocaleDateString()} ${n.toLocaleTimeString()}</em>`;}
+
+// ── Auto-refresh 6AM ──────────────────────────────────────────
+function scheduleRefresh(){
+  const now=new Date(),next=new Date();next.setHours(6,0,0,0);
+  if(now>=next)next.setDate(next.getDate()+1);
+  setTimeout(()=>{loadAll();scheduleRefresh();},next-now);
+}
+
+loadAll();
+scheduleRefresh();
+</script>
+</body>
+</html>
